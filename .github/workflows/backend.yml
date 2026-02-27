@@ -1,4 +1,4 @@
-name: Build & Push Backend
+name: Backend CI/CD
 
 on:
   push:
@@ -10,17 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Build Backend Image
-        run: docker build -t samithspalan/deployment-backend:latest .
+        run: docker build -t nithincode1/backend-app:latest .
 
       - name: Push Backend Image
-        run: docker push samithspalan/deployment-backend:latest
-      - name: Debug Secrets
-  run: |
-    echo "Username: ${{ secrets.DOCKER_USERNAME }}"
-    echo "Password length: ${#${{ secrets.DOCKER_PASSWORD }}}"
+        run: docker push nithincode1/backend-app:latest
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker stop backend-app || true
+            docker rm backend-app || true
+            docker pull nithincode1/backend-app:latest
+            docker run -d \
+              --name backend-app \
+              --env-file .env \
+              -p 5000:5000 \
+              --restart always \
+              nithincode1/backend-app:latest
