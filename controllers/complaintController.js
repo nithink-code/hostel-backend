@@ -1,18 +1,33 @@
 const Complaint = require('../models/Complaint');
+const User = require('../models/User');
+
+// Helper to detect priority based on description
+const detectPriority = (description) => {
+    const desc = description.toLowerCase();
+    const highKeywords = ["urgent", "leak", "shock", "no water", "electric shock", "fire", "sparking"];
+    const mediumKeywords = ["not working", "broken", "damage", "issue"];
+
+    if (highKeywords.some(key => desc.includes(key))) return 'High';
+    if (mediumKeywords.some(key => desc.includes(key))) return 'Medium';
+    return 'Low';
+};
 
 // @desc    Submit a new complaint
 // @route   POST /api/complaints
 // @access  Private (Student)
 const createComplaint = async (req, res) => {
     try {
-        const { title, description, category, priority } = req.body;
+        const { title, description, category } = req.body;
+
+        // Auto-detect priority if not explicitly provided or if we want to override
+        const detectedPriority = detectPriority(description);
 
         const complaint = await Complaint.create({
             student: req.user._id,
             title,
             description,
             category,
-            priority: priority || 'Medium',
+            priority: detectedPriority,
             roomNumber: req.user.roomNumber,
             hostelBlock: req.user.hostelBlock,
         });
@@ -99,7 +114,7 @@ const getAllComplaints = async (req, res) => {
 // @access  Private (Admin)
 const updateComplaint = async (req, res) => {
     try {
-        const { status, adminRemark } = req.body;
+        const { status, priority, adminRemark } = req.body;
 
         const complaint = await Complaint.findById(req.params.id);
 
@@ -107,7 +122,15 @@ const updateComplaint = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Complaint not found' });
         }
 
-        if (status) complaint.status = status;
+        // Only admins can update these fields
+        if (status) {
+            complaint.status = status;
+            // If moving to In Progress, record who is assigned
+            if (status === 'In Progress' && !complaint.assignedStaff) {
+                complaint.assignedStaff = req.user._id;
+            }
+        }
+        if (priority) complaint.priority = priority;
         if (adminRemark !== undefined) complaint.adminRemark = adminRemark;
 
         await complaint.save();
@@ -160,6 +183,95 @@ const getComplaintStats = async (req, res) => {
     }
 };
 
+// @desc    Get maintenance leaderboard (staff and block)
+// @route   GET /api/complaints/leaderboard
+// @access  Private (Admin)
+const getLeaderboard = async (req, res) => {
+    try {
+        // Staff Performance (Fastest resolution)
+        const staffLeaderboard = await Complaint.aggregate([
+            {
+                $match: {
+                    status: 'Resolved',
+                    resolvedAt: { $exists: true },
+                    assignedAt: { $exists: true },
+                    assignedStaff: { $exists: true },
+                },
+            },
+            {
+                $group: {
+                    _id: '$assignedStaff',
+                    avgTimeMs: { $avg: { $subtract: ['$resolvedAt', '$assignedAt'] } },
+                    totalResolved: { $sum: 1 },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'staffDetails',
+                },
+            },
+            { $unwind: '$staffDetails' },
+            {
+                $project: {
+                    name: '$staffDetails.name',
+                    avgTimeMs: 1,
+                    totalResolved: 1,
+                    // Convert to human readable string (e.g. 2h 30m)
+                    avgTime: {
+                        $concat: [
+                            { $toString: { $floor: { $divide: ['$avgTimeMs', 3600000] } } }, // Hours
+                            'h ',
+                            { $toString: { $floor: { $divide: [{ $mod: ['$avgTimeMs', 3600000] }, 60000] } } }, // Minutes
+                            'm'
+                        ],
+                    },
+                },
+            },
+            { $sort: { avgTimeMs: 1 } },
+            { $limit: 5 },
+        ]);
+
+        // Block Performance (Least complaints)
+        const blockLeaderboard = await Complaint.aggregate([
+            {
+                $match: {
+                    hostelBlock: { $ne: null, $ne: "" }
+                }
+            },
+            {
+                $group: {
+                    _id: '$hostelBlock',
+                    totalComplaints: { $sum: 1 },
+                    resolvedCount: {
+                        $sum: { $cond: [{ $eq: ['$status', 'Resolved'] }, 1, 0] }
+                    }
+                },
+            },
+            { $sort: { totalComplaints: 1 } },
+            { $limit: 5 },
+            {
+                $project: {
+                    block: '$_id',
+                    _id: 0,
+                    totalComplaints: 1,
+                    resolvedCount: 1
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            staffLeaderboard,
+            blockLeaderboard,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createComplaint,
     getMyComplaints,
@@ -167,4 +279,5 @@ module.exports = {
     getAllComplaints,
     updateComplaint,
     getComplaintStats,
+    getLeaderboard,
 };

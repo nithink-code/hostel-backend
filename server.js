@@ -10,6 +10,7 @@ require('./config/passport')(passport);
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -61,6 +62,7 @@ app.use(passport.initialize());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

@@ -36,8 +36,8 @@ const ComplaintSchema = new mongoose.Schema(
         priority: {
             type: String,
             required: [true, 'Priority is required'],
-            enum: ['Low', 'Medium', 'High', 'Urgent'],
-            default: 'Medium',
+            enum: ['Low', 'Medium', 'High', 'Urgent'], // Keep Urgent for safety
+            default: 'Low',
         },
         status: {
             type: String,
@@ -60,12 +60,25 @@ const ComplaintSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        assignedStaff: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        assignedAt: {
+            type: Date,
+        },
     },
     { timestamps: true }
 );
 
-// Middleware: set resolvedAt when status changes to Resolved
+// Middleware: set timestamps when status changes
 ComplaintSchema.pre('save', function (next) {
+    // Record when complaint is assigned (status becomes In Progress)
+    if (this.isModified('status') && this.status === 'In Progress' && !this.assignedAt) {
+        this.assignedAt = new Date();
+    }
+
+    // Record when complaint is resolved
     if (this.isModified('status') && this.status === 'Resolved' && !this.resolvedAt) {
         this.resolvedAt = new Date();
     }

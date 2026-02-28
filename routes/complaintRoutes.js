@@ -7,6 +7,7 @@ const {
     getAllComplaints,
     updateComplaint,
     getComplaintStats,
+    getLeaderboard,
 } = require('../controllers/complaintController');
 const { protect, adminOnly } = require('../middleware/auth');
 
@@ -16,6 +17,7 @@ router.get('/my', protect, getMyComplaints);
 
 // Admin routes
 router.get('/stats', protect, adminOnly, getComplaintStats);
+router.get('/leaderboard', protect, adminOnly, getLeaderboard);
 router.get('/', protect, adminOnly, getAllComplaints);
 router.put('/:id', protect, adminOnly, updateComplaint);
 
