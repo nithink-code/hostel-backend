@@ -24,21 +24,33 @@ const allowedOrigins = [
     'http://localhost:5175',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
+    'http://3.235.84.198',
     process.env.FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
     origin: function (origin, callback) {
-        // allow requests with no origin (like mobile apps or curl requests)
+        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            var msg = 'The CORS policy for this site does not ' +
-                'allow access from the specified Origin: ' + origin;
-            return callback(new Error(msg), false);
+
+        // Check if origin is in allowed list
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            // Remove trailing slash for comparison
+            const normalizedAllowed = allowedOrigin.replace(/\/$/, "");
+            const normalizedOrigin = origin.replace(/\/$/, "");
+            return normalizedAllowed === normalizedOrigin;
+        });
+
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            console.log(`CORS blocked for origin: ${origin}`);
+            callback(null, false);
         }
-        return callback(null, true);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
