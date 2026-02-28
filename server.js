@@ -16,51 +16,53 @@ connectDB();
 
 const app = express();
 
-// CORS Options
+/*
+|--------------------------------------------------------------------------
+| CORS CONFIGURATION (PRODUCTION SAFE)
+|--------------------------------------------------------------------------
+*/
+
 const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://3.235.84.198',
-    process.env.FRONTEND_URL
+    "http://3.235.84.198",          // EC2 frontend
+    "http://localhost:5173",       // Local dev
+    process.env.FRONTEND_URL       // Optional from .env
 ].filter(Boolean);
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
+        // Allow requests with no origin (like curl / Postman)
         if (!origin) return callback(null, true);
 
-        // Check if origin is in allowed list
-        const isAllowed = allowedOrigins.some(allowedOrigin => {
-            // Remove trailing slash for comparison
-            const normalizedAllowed = allowedOrigin.replace(/\/$/, "");
-            const normalizedOrigin = origin.replace(/\/$/, "");
-            return normalizedAllowed === normalizedOrigin;
-        });
-
-        if (isAllowed) {
-            callback(null, true);
-        } else {
-            console.log(`CORS blocked for origin: ${origin}`);
-            callback(null, false);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
         }
+
+        console.log(`❌ CORS blocked for origin: ${origin}`);
+        return callback(new Error("Not allowed by CORS"));
     },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    credentials: true
 }));
+
+/*
+|--------------------------------------------------------------------------
+| MIDDLEWARE
+|--------------------------------------------------------------------------
+*/
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
-// Routes
+/*
+|--------------------------------------------------------------------------
+| ROUTES
+|--------------------------------------------------------------------------
+*/
+
 app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
 
-// Health check
+// Health check route
 app.get('/api/health', (req, res) => {
     res.status(200).json({
         success: true,
@@ -69,18 +71,41 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// 404 handler
+/*
+|--------------------------------------------------------------------------
+| 404 HANDLER
+|--------------------------------------------------------------------------
+*/
+
 app.use((req, res) => {
-    res.status(404).json({ success: false, message: 'Route not found' });
+    res.status(404).json({
+        success: false,
+        message: 'Route not found'
+    });
 });
 
-// Global error handler
+/*
+|--------------------------------------------------------------------------
+| GLOBAL ERROR HANDLER
+|--------------------------------------------------------------------------
+*/
+
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    console.error("🔥 Server Error:", err.message);
+
+    res.status(500).json({
+        success: false,
+        message: err.message || "Internal Server Error"
+    });
 });
 
-const PORT = process.env.PORT || 5000;
+/*
+|--------------------------------------------------------------------------
+| SERVER LISTEN
+|--------------------------------------------------------------------------
+*/
+
+const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 HostelOps Server running on port ${PORT}`);
