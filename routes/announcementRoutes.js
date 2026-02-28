@@ -16,8 +16,8 @@ router.get('/', protect, getAnnouncements);
 // Admin: all announcements including expired
 router.get('/all', protect, adminOnly, getAllAnnouncementsAdmin);
 
-// Admin: CRUD
-router.post('/', protect, adminOnly, createAnnouncement);
+// Student + Admin: Create (Admins can target any block, students target their own)
+router.post('/', protect, createAnnouncement);
 router.get('/:id', protect, getAnnouncementById);
 router.put('/:id', protect, adminOnly, updateAnnouncement);
 router.delete('/:id', protect, adminOnly, deleteAnnouncement);

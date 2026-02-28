@@ -7,17 +7,23 @@ const createAnnouncement = async (req, res) => {
     try {
         const { title, description, category, priority, targetBlock, expiryDate } = req.body;
 
+        // Security: Students can only announce to their own block
+        let finalTargetBlock = targetBlock;
+        if (req.user.role === 'student') {
+            finalTargetBlock = req.user.hostelBlock || 'General';
+        }
+
         const announcement = await Announcement.create({
             title,
             description,
             category: category || 'General',
             priority: priority || 'Normal',
-            targetBlock: targetBlock || null,
+            targetBlock: finalTargetBlock || null,
             expiryDate: expiryDate || null,
             createdBy: req.user._id,
         });
 
-        await announcement.populate('createdBy', 'name email');
+        await announcement.populate('createdBy', 'name email role');
 
         res.status(201).json({
             success: true,
@@ -58,7 +64,7 @@ const getAnnouncements = async (req, res) => {
         }
 
         const announcements = await Announcement.find(filter)
-            .populate('createdBy', 'name')
+            .populate('createdBy', 'name role')
             .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, count: announcements.length, announcements });
